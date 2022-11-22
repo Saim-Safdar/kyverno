@@ -9,7 +9,6 @@ require (
 	github.com/blang/semver/v4 v4.0.0
 	github.com/cenkalti/backoff v2.2.1+incompatible
 	github.com/chrismellard/docker-credential-acr-env v0.0.0-20221002210726-e883f69e0206
-	github.com/cyphar/filepath-securejoin v0.2.3
 	github.com/distribution/distribution v2.8.1+incompatible
 	github.com/evanphx/json-patch v5.6.0+incompatible
 	github.com/evanphx/json-patch/v5 v5.6.0
@@ -33,7 +32,6 @@ require (
 	github.com/onsi/gomega v1.22.1
 	github.com/orcaman/concurrent-map/v2 v2.0.0
 	github.com/pkg/errors v0.9.1
-	github.com/robfig/cron v1.2.0
 	github.com/sigstore/cosign v1.13.0
 	github.com/sigstore/k8s-manifest-sigstore v0.4.2
 	github.com/sigstore/sigstore v1.4.4
@@ -62,7 +60,7 @@ require (
 	gopkg.in/yaml.v3 v3.0.1
 	gotest.tools v2.2.0+incompatible
 	k8s.io/api v0.25.2
-	k8s.io/apiextensions-apiserver v0.25.2
+	k8s.io/apiextensions-apiserver v0.25.0
 	k8s.io/apimachinery v0.25.2
 	k8s.io/cli-runtime v0.25.2
 	k8s.io/client-go v0.25.2

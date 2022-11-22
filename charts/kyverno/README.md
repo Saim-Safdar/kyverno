@@ -2,7 +2,7 @@
 
 Kubernetes Native Policy Management
 
-![Version: v2.5.3](https://img.shields.io/badge/Version-v2.5.3-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: v1.7.3](https://img.shields.io/badge/AppVersion-v1.7.3-informational?style=flat-square)
+![Version: 2.6.2](https://img.shields.io/badge/Version-2.6.2-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: v1.8.2](https://img.shields.io/badge/AppVersion-v1.8.2-informational?style=flat-square)
 
 ## About
 
@@ -56,7 +56,7 @@ You can do so by following instructions in these pages of ArgoCD documentation:
 
 ArgoCD uses helm only for templating but applies the results with `kubectl`.
 
-Unfortunately `kubectl` adds metadata that will cross the limit allowed by Kubernetes. Using `Replace` overcomes this limitation.
+Unfortunately `kubectl` adds metadata that will cross the limit allowed by Kuberrnetes. Using `Replace` overcomes this limitation.
 
 Another option is to use server side apply, this will be supported in ArgoCD v2.5.
 
@@ -160,7 +160,7 @@ The command removes all the Kubernetes components associated with the chart and 
 | dnsPolicy | string | `"ClusterFirst"` | `dnsPolicy` determines the manner in which DNS resolution happens in the cluster. In case of `hostNetwork: true`, usually, the `dnsPolicy` is suitable to be `ClusterFirstWithHostNet`. For further reference: https://kubernetes.io/docs/concepts/services-networking/dns-pod-service/#pod-s-dns-policy. |
 | envVarsInit | object | `{}` | Env variables for initContainers. |
 | envVars | object | `{}` | Env variables for containers. |
-| extraArgs | list | `["--loggingFormat=text"]` | Extra arguments to give to the binary. |
+| extraArgs | list | `["--autogenInternals=true","--loggingFormat=text"]` | Extra arguments to give to the binary. |
 | extraInitContainers | list | `[]` | Array of extra init containers |
 | extraContainers | list | `[]` | Array of extra containers to run alongside kyverno |
 | imagePullSecrets | object | `{}` | Image pull secrets for image verify and imageData policies. This will define the `--imagePullSecrets` Kyverno argument. |
@@ -214,22 +214,6 @@ The command removes all the Kubernetes components associated with the chart and 
 | grafana.enabled | bool | `false` | Enable grafana dashboard creation. |
 | grafana.namespace | string | `nil` | Namespace to create the grafana dashboard configmap. If not set, it will be created in the same namespace where the chart is deployed. |
 | grafana.annotations | object | `{}` | Grafana dashboard configmap annotations. |
-| cleanupController.enabled | bool | `true` | Enable cleanup controller. |
-| cleanupController.image.registry | string | `nil` | Image registry |
-| cleanupController.image.repository | string | `"ghcr.io/kyverno/cleanup-controller"` | Image repository |
-| cleanupController.image.tag | string | `nil` | Image tag Defaults to appVersion in Chart.yaml if omitted |
-| cleanupController.image.pullPolicy | string | `"IfNotPresent"` | Image pull policy |
-| cleanupController.image.pullSecrets | list | `[]` | Image pull secrets |
-| cleanupController.service.port | int | `443` | Service port. |
-| cleanupController.service.type | string | `"ClusterIP"` | Service type. |
-| cleanupController.service.nodePort | string | `nil` | Service node port. Only used if `service.type` is `NodePort`. |
-| cleanupController.service.annotations | object | `{}` | Service annotations. |
-| cleanupController.startupProbe | object | See [values.yaml](values.yaml) | Startup probe. The block is directly forwarded into the deployment, so you can use whatever startupProbes configuration you want. ref: https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-probes/ |
-| cleanupController.livenessProbe | object | See [values.yaml](values.yaml) | Liveness probe. The block is directly forwarded into the deployment, so you can use whatever livenessProbe configuration you want. ref: https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-probes/ |
-| cleanupController.readinessProbe | object | See [values.yaml](values.yaml) | Readiness Probe. The block is directly forwarded into the deployment, so you can use whatever readinessProbe configuration you want. ref: https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-probes/ |
-| cleanupController.nodeSelector | object | `{}` | Node labels for pod assignment |
-| cleanupController.tolerations | list | `[]` | List of node taints to tolerate |
-| cleanupController.topologySpreadConstraints | list | `[]` | Topology spread constraints. |
 
 ## TLS Configuration
 

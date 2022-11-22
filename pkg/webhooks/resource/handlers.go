@@ -1,7 +1,6 @@
 package resource
 
 import (
-	"context"
 	"errors"
 	"time"
 
@@ -94,7 +93,7 @@ func NewHandlers(
 	}
 }
 
-func (h *handlers) Validate(ctx context.Context, logger logr.Logger, request *admissionv1.AdmissionRequest, failurePolicy string, startTime time.Time) *admissionv1.AdmissionResponse {
+func (h *handlers) Validate(logger logr.Logger, request *admissionv1.AdmissionRequest, failurePolicy string, startTime time.Time) *admissionv1.AdmissionResponse {
 	if webhookutils.ExcludeKyvernoResources(request.Kind.Kind) {
 		return admissionutils.ResponseSuccess()
 	}
@@ -144,7 +143,7 @@ func (h *handlers) Validate(ctx context.Context, logger logr.Logger, request *ad
 	return admissionutils.ResponseSuccess(warnings...)
 }
 
-func (h *handlers) Mutate(ctx context.Context, logger logr.Logger, request *admissionv1.AdmissionRequest, failurePolicy string, startTime time.Time) *admissionv1.AdmissionResponse {
+func (h *handlers) Mutate(logger logr.Logger, request *admissionv1.AdmissionRequest, failurePolicy string, startTime time.Time) *admissionv1.AdmissionResponse {
 	if webhookutils.ExcludeKyvernoResources(request.Kind.Kind) {
 		return admissionutils.ResponseSuccess()
 	}

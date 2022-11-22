@@ -28,6 +28,7 @@ import (
 	"github.com/sigstore/sigstore/pkg/cryptoutils"
 	"github.com/sigstore/sigstore/pkg/signature"
 	"github.com/sigstore/sigstore/pkg/signature/payload"
+	"go.uber.org/multierr"
 )
 
 // ImageSignatureRepository is an alternate signature repository
@@ -46,7 +47,6 @@ type Options struct {
 	Annotations          map[string]string
 	Repository           string
 	RekorURL             string
-	SignatureAlgorithm   string
 }
 
 type Response struct {
@@ -96,7 +96,7 @@ func verifySignature(opts Options) (*Response, error) {
 		return nil, err
 	}
 
-	if err := matchCertificate(signatures, opts.Subject, opts.Issuer, opts.AdditionalExtensions); err != nil {
+	if err := matchSignatures(signatures, opts.Subject, opts.Issuer, opts.AdditionalExtensions); err != nil {
 		return nil, err
 	}
 
@@ -116,11 +116,6 @@ func verifySignature(opts Options) (*Response, error) {
 func buildCosignOptions(opts Options) (*cosign.CheckOpts, error) {
 	var remoteOpts []remote.Option
 	var err error
-	signatureAlgorithmMap := map[string]crypto.Hash{
-		"":       crypto.SHA256,
-		"sha256": crypto.SHA256,
-		"sha512": crypto.SHA512,
-	}
 	ro := options.RegistryOptions{}
 	remoteOpts, err = ro.ClientOpts(context.Background())
 	if err != nil {
@@ -148,7 +143,7 @@ func buildCosignOptions(opts Options) (*cosign.CheckOpts, error) {
 
 	if opts.Key != "" {
 		if strings.HasPrefix(strings.TrimSpace(opts.Key), "-----BEGIN PUBLIC KEY-----") {
-			cosignOpts.SigVerifier, err = decodePEM([]byte(opts.Key), signatureAlgorithmMap[opts.SignatureAlgorithm])
+			cosignOpts.SigVerifier, err = decodePEM([]byte(opts.Key))
 			if err != nil {
 				return nil, errors.Wrap(err, "failed to load public key from PEM")
 			}
@@ -290,7 +285,7 @@ func fetchAttestations(opts Options) (*Response, error) {
 		return nil, err
 	}
 
-	if err := matchCertificate(signatures, opts.Subject, opts.Issuer, opts.AdditionalExtensions); err != nil {
+	if err := matchSignatures(signatures, opts.Subject, opts.Issuer, opts.AdditionalExtensions); err != nil {
 		return nil, err
 	}
 
@@ -412,14 +407,14 @@ func stringToJSONMap(i interface{}) (map[string]interface{}, error) {
 	return data, nil
 }
 
-func decodePEM(raw []byte, signatureAlgorithm crypto.Hash) (signature.Verifier, error) {
+func decodePEM(raw []byte) (signature.Verifier, error) {
 	// PEM encoded file.
 	pubKey, err := cryptoutils.UnmarshalPEMToPublicKey(raw)
 	if err != nil {
 		return nil, errors.Wrap(err, "pem to public key")
 	}
 
-	return signature.LoadVerifier(pubKey, signatureAlgorithm)
+	return signature.LoadVerifier(pubKey, crypto.SHA256)
 }
 
 func extractPayload(verified []oci.Signature) ([]payload.SimpleContainerImage, error) {
@@ -451,11 +446,12 @@ func extractDigest(imgRef string, payload []payload.SimpleContainerImage) (strin
 	return "", fmt.Errorf("digest not found for " + imgRef)
 }
 
-func matchCertificate(signatures []oci.Signature, subject, issuer string, extensions map[string]string) error {
+func matchSignatures(signatures []oci.Signature, subject, issuer string, extensions map[string]string) error {
 	if subject == "" && issuer == "" && len(extensions) == 0 {
 		return nil
 	}
 
+	var errs []error
 	for _, sig := range signatures {
 		cert, err := sig.Cert()
 		if err != nil {
@@ -466,16 +462,32 @@ func matchCertificate(signatures []oci.Signature, subject, issuer string, extens
 			return errors.Errorf("certificate not found")
 		}
 
-		if subject != "" {
-			s := sigs.CertSubject(cert)
-			if !wildcard.Match(subject, s) {
-				return fmt.Errorf("subject mismatch: expected %s, received %s", subject, s)
-			}
+		if err := matchCertificateData(cert, subject, issuer, extensions); err != nil {
+			errs = append(errs, err)
+		} else {
+			// only one signature certificate needs to match the required subject, issuer, and extensions
+			return nil
 		}
+	}
 
-		if err := matchExtensions(cert, issuer, extensions); err != nil {
-			return err
+	if len(errs) > 0 {
+		err := multierr.Combine(errs...)
+		return err
+	}
+
+	return fmt.Errorf("invalid signature")
+}
+
+func matchCertificateData(cert *x509.Certificate, subject, issuer string, extensions map[string]string) error {
+	if subject != "" {
+		s := sigs.CertSubject(cert)
+		if !wildcard.Match(subject, s) {
+			return fmt.Errorf("subject mismatch: expected %s, received %s", subject, s)
 		}
+	}
+
+	if err := matchExtensions(cert, issuer, extensions); err != nil {
+		return err
 	}
 
 	return nil
@@ -507,17 +519,17 @@ func matchExtensions(cert *x509.Certificate, issuer string, extensions map[strin
 
 func extractCertExtensionValue(key string, ce cosign.CertExtensions) (string, error) {
 	switch key {
-	case cosign.CertExtensionOIDCIssuer, cosign.CertExtensionMap[cosign.CertExtensionOIDCIssuer]:
+	case cosign.CertExtensionMap[cosign.CertExtensionOIDCIssuer]:
 		return ce.GetIssuer(), nil
-	case cosign.CertExtensionGithubWorkflowTrigger, cosign.CertExtensionMap[cosign.CertExtensionGithubWorkflowTrigger]:
+	case cosign.CertExtensionMap[cosign.CertExtensionGithubWorkflowTrigger]:
 		return ce.GetCertExtensionGithubWorkflowTrigger(), nil
-	case cosign.CertExtensionGithubWorkflowSha, cosign.CertExtensionMap[cosign.CertExtensionGithubWorkflowSha]:
+	case cosign.CertExtensionMap[cosign.CertExtensionGithubWorkflowSha]:
 		return ce.GetExtensionGithubWorkflowSha(), nil
-	case cosign.CertExtensionGithubWorkflowName, cosign.CertExtensionMap[cosign.CertExtensionGithubWorkflowName]:
+	case cosign.CertExtensionMap[cosign.CertExtensionGithubWorkflowName]:
 		return ce.GetCertExtensionGithubWorkflowName(), nil
-	case cosign.CertExtensionGithubWorkflowRepository, cosign.CertExtensionMap[cosign.CertExtensionGithubWorkflowRepository]:
+	case cosign.CertExtensionMap[cosign.CertExtensionGithubWorkflowRepository]:
 		return ce.GetCertExtensionGithubWorkflowRepository(), nil
-	case cosign.CertExtensionGithubWorkflowRef, cosign.CertExtensionMap[cosign.CertExtensionGithubWorkflowRef]:
+	case cosign.CertExtensionMap[cosign.CertExtensionGithubWorkflowRef]:
 		return ce.GetCertExtensionGithubWorkflowRef(), nil
 	default:
 		return "", errors.Errorf("invalid certificate extension %s", key)

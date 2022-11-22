@@ -63,9 +63,9 @@ func filterPolicies(pkey PolicyType, result []kyvernov1.PolicyInterface, nspace,
 		keepPolicy := true
 		switch pkey {
 		case ValidateAudit:
-			keepPolicy = checkValidationFailureActionOverrides(false, nspace, policy)
+			keepPolicy = checkValidationFailureActionOverrides(kyvernov1.Audit, nspace, policy)
 		case ValidateEnforce:
-			keepPolicy = checkValidationFailureActionOverrides(true, nspace, policy)
+			keepPolicy = checkValidationFailureActionOverrides(kyvernov1.Enforce, nspace, policy)
 		}
 		if keepPolicy { // add policy to result
 			policies = append(policies, policy)
@@ -74,14 +74,14 @@ func filterPolicies(pkey PolicyType, result []kyvernov1.PolicyInterface, nspace,
 	return policies
 }
 
-func checkValidationFailureActionOverrides(enforce bool, ns string, policy kyvernov1.PolicyInterface) bool {
+func checkValidationFailureActionOverrides(requestedAction kyvernov1.ValidationFailureAction, ns string, policy kyvernov1.PolicyInterface) bool {
 	validationFailureAction := policy.GetSpec().ValidationFailureAction
 	validationFailureActionOverrides := policy.GetSpec().ValidationFailureActionOverrides
-	if validationFailureAction.Enforce() != enforce && (ns == "" || len(validationFailureActionOverrides) == 0) {
+	if validationFailureAction != requestedAction && (ns == "" || len(validationFailureActionOverrides) == 0) {
 		return false
 	}
 	for _, action := range validationFailureActionOverrides {
-		if action.Action.Enforce() != enforce && kyvernoutils.ContainsNamepace(action.Namespaces, ns) {
+		if action.Action != requestedAction && kyvernoutils.ContainsNamepace(action.Namespaces, ns) {
 			return false
 		}
 	}

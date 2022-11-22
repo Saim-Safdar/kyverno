@@ -1358,159 +1358,6 @@ func Test_deny_exec(t *testing.T) {
 	assert.NilError(t, err)
 }
 
-func Test_SignatureAlgorithm(t *testing.T) {
-	testcases := []struct {
-		description    string
-		policy         []byte
-		expectedOutput bool
-	}{
-		{
-			description: "Test empty signature algorithm - pass",
-			policy: []byte(`{
-				"apiVersion": "kyverno.io/v1",
-				"kind": "ClusterPolicy",
-				"metadata": {
-					"name": "check-empty-signature-algorithm"
-				},
-				"spec": {
-					"rules": [
-						{
-							"match": {
-								"resources": {
-									"kinds": [
-										"Pod"
-									]
-								}
-							},
-							"verifyImages": [
-								{
-									"imageReferences": [
-										"ghcr.io/kyverno/test-verify-image:*"
-									],
-									"attestors": [
-										{
-											"count": 1,
-											"entries": [
-												{
-													"keys": {
-														"publicKeys": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE8nXRh950IZbRj8Ra/N9sbqOPZrfM\n5/KAQN0/KjHcorm/J5yctVd7iEcnessRQjU917hmKO6JWVGHpDguIyakZA==\n-----END PUBLIC KEY-----"
-													}
-												}
-											]
-										}
-									]
-								}
-							]
-						}
-					]
-				}
-			}`),
-			expectedOutput: true,
-		},
-		{
-			description: "Test invalid signature algorithm - fail",
-			policy: []byte(`{
-				"apiVersion": "kyverno.io/v1",
-				"kind": "ClusterPolicy",
-				"metadata": {
-					"name": "check-invalid-signature-algorithm"
-				},
-				"spec": {
-					"rules": [
-						{
-							"match": {
-								"resources": {
-									"kinds": [
-										"Pod"
-									]
-								}
-							},
-							"verifyImages": [
-								{
-									"imageReferences": [
-										"ghcr.io/kyverno/test-verify-image:*"
-									],
-									"attestors": [
-										{
-											"count": 1,
-											"entries": [
-												{
-													"keys": {
-														"publicKeys": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE8nXRh950IZbRj8Ra/N9sbqOPZrfM\n5/KAQN0/KjHcorm/J5yctVd7iEcnessRQjU917hmKO6JWVGHpDguIyakZA==\n-----END PUBLIC KEY-----",
-														"signatureAlgorithm": "sha123"
-													}
-												}
-											]
-										}
-									]
-								}
-							]
-						}
-					]
-				}
-			}`),
-			expectedOutput: false,
-		},
-		{
-			description: "Test invalid signature algorithm - fail",
-			policy: []byte(`{
-				"apiVersion": "kyverno.io/v1",
-				"kind": "ClusterPolicy",
-				"metadata": {
-					"name": "check-valid-signature-algorithm"
-				},
-				"spec": {
-					"rules": [
-						{
-							"match": {
-								"resources": {
-									"kinds": [
-										"Pod"
-									]
-								}
-							},
-							"verifyImages": [
-								{
-									"imageReferences": [
-										"ghcr.io/kyverno/test-verify-image:*"
-									],
-									"attestors": [
-										{
-											"count": 1,
-											"entries": [
-												{
-													"keys": {
-														"publicKeys": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE8nXRh950IZbRj8Ra/N9sbqOPZrfM\n5/KAQN0/KjHcorm/J5yctVd7iEcnessRQjU917hmKO6JWVGHpDguIyakZA==\n-----END PUBLIC KEY-----",
-														"signatureAlgorithm": "sha256"
-													}
-												}
-											]
-										}
-									]
-								}
-							]
-						}
-					]
-				}
-			}`),
-			expectedOutput: true,
-		},
-	}
-	for _, testcase := range testcases {
-		var policy *kyverno.ClusterPolicy
-		err := json.Unmarshal(testcase.policy, &policy)
-		assert.NilError(t, err)
-
-		openApiManager, _ := openapi.NewManager()
-		_, err = Validate(policy, nil, true, openApiManager)
-		if testcase.expectedOutput {
-			assert.NilError(t, err)
-		} else {
-			assert.ErrorContains(t, err, "Invalid signature algorithm provided")
-		}
-	}
-}
-
 func Test_existing_resource_policy(t *testing.T) {
 	var err error
 	rawPolicy := []byte(`{
@@ -1568,7 +1415,7 @@ func Test_PodControllerAutoGenExclusion_All_Controllers_Policy(t *testing.T) {
 	  }
 	},
 	"spec": {
-	  "validationFailureAction": "Enforce",
+	  "validationFailureAction": "enforce",
 	  "background": false,
 	  "rules": [
 		{
@@ -1625,7 +1472,7 @@ func Test_PodControllerAutoGenExclusion_Not_All_Controllers_Policy(t *testing.T)
 	  }
 	},
 	"spec": {
-	  "validationFailureAction": "Enforce",
+	  "validationFailureAction": "enforce",
 	  "background": false,
 	  "rules": [
 		{
@@ -1682,7 +1529,7 @@ func Test_PodControllerAutoGenExclusion_None_Policy(t *testing.T) {
 	  }
 	},
 	"spec": {
-	  "validationFailureAction": "Enforce",
+	  "validationFailureAction": "enforce",
 	  "background": false,
 	  "rules": [
 		{
@@ -1727,38 +1574,6 @@ func Test_PodControllerAutoGenExclusion_None_Policy(t *testing.T) {
 	assert.NilError(t, err)
 }
 
-func Test_ValidateJSON6902(t *testing.T) {
-	var patch string = `- path: "/metadata/labels/img"
-  op: addition
-  value: "nginx"`
-	err := validateJSONPatch(patch, 0)
-	assert.Error(t, err, "Unexpected kind: spec.rules[0]: addition")
-
-	patch = `- path: "/metadata/labels/img"
-  op: add
-  value: "nginx"`
-	err = validateJSONPatch(patch, 0)
-	assert.NilError(t, err)
-
-	patch = `- path: "/metadata/labels/img"
-  op: add
-  value: nginx"`
-	err = validateJSONPatch(patch, 0)
-	assert.Error(t, err, `missing quote around value: spec.rules[0]: nginx"`)
-
-	patch = `- path: "/metadata/labels/img"
-  op: add
-  value: {"node.kubernetes.io/role": test"}`
-	err = validateJSONPatch(patch, 0)
-	assert.Error(t, err, `missing quote around value: spec.rules[0]: map[node.kubernetes.io/role:test"]`)
-
-	patch = `- path: "/metadata/labels/img"
-  op: add
-  value: "nginx"`
-	err = validateJSONPatch(patch, 0)
-	assert.NilError(t, err)
-}
-
 func Test_ValidateNamespace(t *testing.T) {
 	testcases := []struct {
 		description   string
@@ -1768,17 +1583,17 @@ func Test_ValidateNamespace(t *testing.T) {
 		{
 			description: "tc1",
 			spec: &kyverno.Spec{
-				ValidationFailureAction: "Enforce",
+				ValidationFailureAction: kyverno.Enforce,
 				ValidationFailureActionOverrides: []kyverno.ValidationFailureActionOverride{
 					{
-						Action: "Enforce",
+						Action: kyverno.Enforce,
 						Namespaces: []string{
 							"default",
 							"test",
 						},
 					},
 					{
-						Action: "Audit",
+						Action: kyverno.Audit,
 						Namespaces: []string{
 							"default",
 						},
@@ -1800,17 +1615,17 @@ func Test_ValidateNamespace(t *testing.T) {
 		{
 			description: "tc2",
 			spec: &kyverno.Spec{
-				ValidationFailureAction: "Enforce",
+				ValidationFailureAction: kyverno.Enforce,
 				ValidationFailureActionOverrides: []kyverno.ValidationFailureActionOverride{
 					{
-						Action: "Enforce",
+						Action: kyverno.Enforce,
 						Namespaces: []string{
 							"default",
 							"test",
 						},
 					},
 					{
-						Action: "Audit",
+						Action: kyverno.Audit,
 						Namespaces: []string{
 							"default",
 						},
@@ -1831,17 +1646,17 @@ func Test_ValidateNamespace(t *testing.T) {
 		{
 			description: "tc3",
 			spec: &kyverno.Spec{
-				ValidationFailureAction: "Enforce",
+				ValidationFailureAction: kyverno.Enforce,
 				ValidationFailureActionOverrides: []kyverno.ValidationFailureActionOverride{
 					{
-						Action: "Enforce",
+						Action: kyverno.Enforce,
 						Namespaces: []string{
 							"default*",
 							"test",
 						},
 					},
 					{
-						Action: "Audit",
+						Action: kyverno.Audit,
 						Namespaces: []string{
 							"default",
 						},
@@ -1863,17 +1678,17 @@ func Test_ValidateNamespace(t *testing.T) {
 		{
 			description: "tc4",
 			spec: &kyverno.Spec{
-				ValidationFailureAction: "Enforce",
+				ValidationFailureAction: kyverno.Enforce,
 				ValidationFailureActionOverrides: []kyverno.ValidationFailureActionOverride{
 					{
-						Action: "Enforce",
+						Action: kyverno.Enforce,
 						Namespaces: []string{
 							"default",
 							"test",
 						},
 					},
 					{
-						Action: "Audit",
+						Action: kyverno.Audit,
 						Namespaces: []string{
 							"*",
 						},
@@ -1895,17 +1710,17 @@ func Test_ValidateNamespace(t *testing.T) {
 		{
 			description: "tc5",
 			spec: &kyverno.Spec{
-				ValidationFailureAction: "Enforce",
+				ValidationFailureAction: kyverno.Enforce,
 				ValidationFailureActionOverrides: []kyverno.ValidationFailureActionOverride{
 					{
-						Action: "Enforce",
+						Action: kyverno.Enforce,
 						Namespaces: []string{
 							"default",
 							"test",
 						},
 					},
 					{
-						Action: "Audit",
+						Action: kyverno.Audit,
 						Namespaces: []string{
 							"?*",
 						},
@@ -1927,17 +1742,17 @@ func Test_ValidateNamespace(t *testing.T) {
 		{
 			description: "tc6",
 			spec: &kyverno.Spec{
-				ValidationFailureAction: "Enforce",
+				ValidationFailureAction: kyverno.Enforce,
 				ValidationFailureActionOverrides: []kyverno.ValidationFailureActionOverride{
 					{
-						Action: "Enforce",
+						Action: kyverno.Enforce,
 						Namespaces: []string{
 							"default?",
 							"test",
 						},
 					},
 					{
-						Action: "Audit",
+						Action: kyverno.Audit,
 						Namespaces: []string{
 							"default1",
 						},
@@ -1959,17 +1774,17 @@ func Test_ValidateNamespace(t *testing.T) {
 		{
 			description: "tc7",
 			spec: &kyverno.Spec{
-				ValidationFailureAction: "Enforce",
+				ValidationFailureAction: kyverno.Enforce,
 				ValidationFailureActionOverrides: []kyverno.ValidationFailureActionOverride{
 					{
-						Action: "Enforce",
+						Action: kyverno.Enforce,
 						Namespaces: []string{
 							"default*",
 							"test",
 						},
 					},
 					{
-						Action: "Audit",
+						Action: kyverno.Audit,
 						Namespaces: []string{
 							"?*",
 						},
@@ -1991,16 +1806,16 @@ func Test_ValidateNamespace(t *testing.T) {
 		{
 			description: "tc8",
 			spec: &kyverno.Spec{
-				ValidationFailureAction: "Enforce",
+				ValidationFailureAction: kyverno.Enforce,
 				ValidationFailureActionOverrides: []kyverno.ValidationFailureActionOverride{
 					{
-						Action: "Enforce",
+						Action: kyverno.Enforce,
 						Namespaces: []string{
 							"*",
 						},
 					},
 					{
-						Action: "Audit",
+						Action: kyverno.Audit,
 						Namespaces: []string{
 							"?*",
 						},
@@ -2022,17 +1837,17 @@ func Test_ValidateNamespace(t *testing.T) {
 		{
 			description: "tc9",
 			spec: &kyverno.Spec{
-				ValidationFailureAction: "Enforce",
+				ValidationFailureAction: kyverno.Enforce,
 				ValidationFailureActionOverrides: []kyverno.ValidationFailureActionOverride{
 					{
-						Action: "Enforce",
+						Action: kyverno.Enforce,
 						Namespaces: []string{
 							"default*",
 							"test",
 						},
 					},
 					{
-						Action: "Audit",
+						Action: kyverno.Audit,
 						Namespaces: []string{
 							"default",
 							"test*",
@@ -2055,17 +1870,17 @@ func Test_ValidateNamespace(t *testing.T) {
 		{
 			description: "tc10",
 			spec: &kyverno.Spec{
-				ValidationFailureAction: "Enforce",
+				ValidationFailureAction: kyverno.Enforce,
 				ValidationFailureActionOverrides: []kyverno.ValidationFailureActionOverride{
 					{
-						Action: "Enforce",
+						Action: kyverno.Enforce,
 						Namespaces: []string{
 							"*efault",
 							"test",
 						},
 					},
 					{
-						Action: "Audit",
+						Action: kyverno.Audit,
 						Namespaces: []string{
 							"default",
 						},
@@ -2087,17 +1902,17 @@ func Test_ValidateNamespace(t *testing.T) {
 		{
 			description: "tc11",
 			spec: &kyverno.Spec{
-				ValidationFailureAction: "Enforce",
+				ValidationFailureAction: kyverno.Enforce,
 				ValidationFailureActionOverrides: []kyverno.ValidationFailureActionOverride{
 					{
-						Action: "Enforce",
+						Action: kyverno.Enforce,
 						Namespaces: []string{
 							"default-*",
 							"test",
 						},
 					},
 					{
-						Action: "Audit",
+						Action: kyverno.Audit,
 						Namespaces: []string{
 							"default",
 						},
@@ -2118,16 +1933,16 @@ func Test_ValidateNamespace(t *testing.T) {
 		{
 			description: "tc12",
 			spec: &kyverno.Spec{
-				ValidationFailureAction: "Enforce",
+				ValidationFailureAction: kyverno.Enforce,
 				ValidationFailureActionOverrides: []kyverno.ValidationFailureActionOverride{
 					{
-						Action: "Enforce",
+						Action: kyverno.Enforce,
 						Namespaces: []string{
 							"default*?",
 						},
 					},
 					{
-						Action: "Audit",
+						Action: kyverno.Audit,
 						Namespaces: []string{
 							"default",
 							"test*",
@@ -2149,16 +1964,16 @@ func Test_ValidateNamespace(t *testing.T) {
 		{
 			description: "tc13",
 			spec: &kyverno.Spec{
-				ValidationFailureAction: "Enforce",
+				ValidationFailureAction: kyverno.Enforce,
 				ValidationFailureActionOverrides: []kyverno.ValidationFailureActionOverride{
 					{
-						Action: "Enforce",
+						Action: kyverno.Enforce,
 						Namespaces: []string{
 							"default?",
 						},
 					},
 					{
-						Action: "Audit",
+						Action: kyverno.Audit,
 						Namespaces: []string{
 							"default",
 						},

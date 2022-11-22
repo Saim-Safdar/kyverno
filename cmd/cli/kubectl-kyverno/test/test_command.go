@@ -29,6 +29,7 @@ import (
 	"github.com/kyverno/kyverno/pkg/engine/response"
 	"github.com/kyverno/kyverno/pkg/openapi"
 	policy2 "github.com/kyverno/kyverno/pkg/policy"
+	"github.com/kyverno/kyverno/pkg/policyreport"
 	util "github.com/kyverno/kyverno/pkg/utils"
 	"github.com/lensesio/tableprinter"
 	"github.com/spf13/cobra"
@@ -513,7 +514,7 @@ func getLocalDirTestFiles(fs billy.Filesystem, path, fileName string, rc *result
 	return errors
 }
 
-func buildPolicyResults(engineResponses []*response.EngineResponse, testResults []TestResults, infos []common.Info, policyResourcePath string, fs billy.Filesystem, isGit bool) (map[string]policyreportv1alpha2.PolicyReportResult, []TestResults) {
+func buildPolicyResults(engineResponses []*response.EngineResponse, testResults []TestResults, infos []policyreport.Info, policyResourcePath string, fs billy.Filesystem, isGit bool) (map[string]policyreportv1alpha2.PolicyReportResult, []TestResults) {
 	results := make(map[string]policyreportv1alpha2.PolicyReportResult)
 	now := metav1.Timestamp{Seconds: time.Now().Unix()}
 
@@ -821,7 +822,7 @@ func applyPoliciesFromPath(fs billy.Filesystem, policyBytes []byte, isGit bool, 
 	var dClient dclient.Interface
 	values := &Test{}
 	var variablesString string
-	var pvInfos []common.Info
+	var pvInfos []policyreport.Info
 	var resultCounts common.ResultCounts
 
 	store.SetMock(true)
@@ -933,12 +934,19 @@ func applyPoliciesFromPath(fs billy.Filesystem, policyBytes []byte, isGit bool, 
 	}
 	policies = filteredPolicies
 
-	err = common.PrintMutatedPolicy(policies)
+	mutatedPolicies, err := common.MutatePolicies(policies)
+	if err != nil {
+		if !sanitizederror.IsErrorSanitized(err) {
+			return sanitizederror.NewWithError("failed to mutate policy", err)
+		}
+	}
+
+	err = common.PrintMutatedPolicy(mutatedPolicies)
 	if err != nil {
 		return sanitizederror.NewWithError("failed to print mutated policy", err)
 	}
 
-	resources, err := common.GetResourceAccordingToResourcePath(fs, resourceFullPath, false, policies, dClient, "", false, isGit, policyResourcePath)
+	resources, err := common.GetResourceAccordingToResourcePath(fs, resourceFullPath, false, mutatedPolicies, dClient, "", false, isGit, policyResourcePath)
 	if err != nil {
 		fmt.Printf("Error: failed to load resources\nCause: %s\n", err)
 		os.Exit(1)
@@ -961,7 +969,7 @@ func applyPoliciesFromPath(fs billy.Filesystem, policyBytes []byte, isGit bool, 
 	resources = filteredResources
 
 	msgPolicies := "1 policy"
-	if len(policies) > 1 {
+	if len(mutatedPolicies) > 1 {
 		msgPolicies = fmt.Sprintf("%d policies", len(policies))
 	}
 
@@ -970,11 +978,11 @@ func applyPoliciesFromPath(fs billy.Filesystem, policyBytes []byte, isGit bool, 
 		msgResources = fmt.Sprintf("%d resources", len(resources))
 	}
 
-	if len(policies) > 0 && len(resources) > 0 {
+	if len(mutatedPolicies) > 0 && len(resources) > 0 {
 		fmt.Printf("\napplying %s to %s... \n", msgPolicies, msgResources)
 	}
 
-	for _, policy := range policies {
+	for _, policy := range mutatedPolicies {
 		_, err := policy2.Validate(policy, nil, true, openApiManager)
 		if err != nil {
 			log.Log.Error(err, "skipping invalid policy", "name", policy.GetName())
@@ -1000,19 +1008,8 @@ func applyPoliciesFromPath(fs billy.Filesystem, policyBytes []byte, isGit bool, 
 			if err != nil {
 				return sanitizederror.NewWithError(fmt.Sprintf("policy `%s` have variables. pass the values for the variables for resource `%s` using set/values_file flag", policy.GetName(), resource.GetName()), err)
 			}
-			applyPolicyConfig := common.ApplyPolicyConfig{
-				Policy:                    policy,
-				Resource:                  resource,
-				MutateLogPath:             "",
-				Variables:                 thisPolicyResourceValues,
-				UserInfo:                  userInfo,
-				PolicyReport:              true,
-				NamespaceSelectorMap:      namespaceSelectorMap,
-				Rc:                        &resultCounts,
-				RuleToCloneSourceResource: ruleToCloneSourceResource,
-				Client:                    dClient,
-			}
-			ers, info, err := common.ApplyPolicyOnResource(applyPolicyConfig)
+
+			ers, info, err := common.ApplyPolicyOnResource(policy, resource, "", false, thisPolicyResourceValues, userInfo, true, namespaceSelectorMap, false, &resultCounts, false, ruleToCloneSourceResource)
 			if err != nil {
 				return sanitizederror.NewWithError(fmt.Errorf("failed to apply policy %v on resource %v", policy.GetName(), resource.GetName()).Error(), err)
 			}
@@ -1233,6 +1230,9 @@ func printTestResult(resps map[string]policyreportv1alpha2.PolicyReportResult, t
 		}
 	}
 
+	if countDeprecatedResource > 0 {
+		fmt.Printf("\n Note : The resource field is being deprecated in 1.8.0 release. Please provide the resources under the resources parameter as an array in the results field \n")
+	}
 	printer.BorderTop, printer.BorderBottom, printer.BorderLeft, printer.BorderRight = true, true, true, true
 	printer.CenterSeparator = "│"
 	printer.ColumnSeparator = "│"
