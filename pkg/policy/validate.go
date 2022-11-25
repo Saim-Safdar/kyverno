@@ -79,49 +79,6 @@ func validateJSONPatchPathForForwardSlash(patch string) error {
 	return nil
 }
 
-func validateJSONPatch(patch string, ruleIdx int) error {
-	patch = variables.ReplaceAllVars(patch, func(s string) string { return "kyvernojsonpatchvariable" })
-
-	jsonPatch, err := yaml.ToJSON([]byte(patch))
-	if err != nil {
-		return err
-	}
-
-	decodedPatch, err := jsonpatch.DecodePatch(jsonPatch)
-	if err != nil {
-		return err
-	}
-
-	for _, operation := range decodedPatch {
-		op := operation.Kind()
-		if op != "add" && op != "remove" && op != "replace" {
-			return fmt.Errorf("Unexpected kind: spec.rules[%d]: %s", ruleIdx, op)
-		}
-		v, _ := operation.ValueInterface()
-		if v != nil {
-			vs := fmt.Sprintf("%v", v)
-			if strings.ContainsAny(vs, `"`) || strings.ContainsAny(vs, `'`) {
-				return fmt.Errorf("missing quote around value: spec.rules[%d]: %s", ruleIdx, vs)
-			}
-		}
-	}
-
-	return nil
-}
-
-func checkValidationFailureAction(spec *kyvernov1.Spec) []string {
-	msg := "Validation failure actions enforce/audit are deprecated, use Enforce/Audit instead."
-	if spec.ValidationFailureAction == "enforce" || spec.ValidationFailureAction == "audit" {
-		return []string{msg}
-	}
-	for _, override := range spec.ValidationFailureActionOverrides {
-		if override.Action == "enforce" || override.Action == "audit" {
-			return []string{msg}
-		}
-	}
-	return nil
-}
-
 // Validate checks the policy and rules declarations for required configurations
 func Validate(policy kyvernov1.PolicyInterface, client dclient.Interface, mock bool, openApiManager openapi.Manager) ([]string, error) {
 	var warnings []string
@@ -133,7 +90,6 @@ func Validate(policy kyvernov1.PolicyInterface, client dclient.Interface, mock b
 		openapicontroller.NewController(client, openApiManager).CheckSync(context.TODO())
 	}
 
-	warnings = append(warnings, checkValidationFailureAction(spec)...)
 	var errs field.ErrorList
 	specPath := field.NewPath("spec")
 
@@ -191,9 +147,6 @@ func Validate(policy kyvernov1.PolicyInterface, client dclient.Interface, mock b
 		// check for forward slash
 		if err := validateJSONPatchPathForForwardSlash(rule.Mutation.PatchesJSON6902); err != nil {
 			return warnings, fmt.Errorf("path must begin with a forward slash: spec.rules[%d]: %s", i, err)
-		}
-		if err := validateJSONPatch(rule.Mutation.PatchesJSON6902, i); err != nil {
-			return warnings, fmt.Errorf("%s", err)
 		}
 
 		if jsonPatchOnPod(rule) {
@@ -1245,31 +1198,32 @@ func validateWildcardsWithNamespaces(enforce, audit, enforceW, auditW []string) 
 
 func validateNamespaces(s *kyvernov1.Spec, path *field.Path) error {
 	action := map[string]sets.String{
-		"enforce":  sets.NewString(),
-		"audit":    sets.NewString(),
-		"enforceW": sets.NewString(),
-		"auditW":   sets.NewString(),
+		string(kyvernov1.Enforce): sets.NewString(),
+		string(kyvernov1.Audit):   sets.NewString(),
+		"enforceW":                sets.NewString(),
+		"auditW":                  sets.NewString(),
 	}
 
 	for i, vfa := range s.ValidationFailureActionOverrides {
 		patternList, nsList := utils.SeperateWildcards(vfa.Namespaces)
 
-		if vfa.Action.Audit() {
-			if action["enforce"].HasAny(nsList...) {
+		if vfa.Action == kyvernov1.Audit {
+			if action[string(kyvernov1.Enforce)].HasAny(nsList...) {
 				return fmt.Errorf("conflicting namespaces found in path: %s: %s", path.Index(i).Child("namespaces").String(),
-					strings.Join(action["enforce"].Intersection(sets.NewString(nsList...)).List(), ", "))
+					strings.Join(action[string(kyvernov1.Enforce)].Intersection(sets.NewString(nsList...)).List(), ", "))
 			}
 			action["auditW"].Insert(patternList...)
-		} else if vfa.Action.Enforce() {
-			if action["audit"].HasAny(nsList...) {
+		} else if vfa.Action == kyvernov1.Enforce {
+			if action[string(kyvernov1.Audit)].HasAny(nsList...) {
 				return fmt.Errorf("conflicting namespaces found in path: %s: %s", path.Index(i).Child("namespaces").String(),
-					strings.Join(action["audit"].Intersection(sets.NewString(nsList...)).List(), ", "))
+					strings.Join(action[string(kyvernov1.Audit)].Intersection(sets.NewString(nsList...)).List(), ", "))
 			}
 			action["enforceW"].Insert(patternList...)
 		}
-		action[strings.ToLower(string(vfa.Action))].Insert(nsList...)
+		action[string(vfa.Action)].Insert(nsList...)
 
-		err := validateWildcardsWithNamespaces(action["enforce"].List(), action["audit"].List(), action["enforceW"].List(), action["auditW"].List())
+		err := validateWildcardsWithNamespaces(action[string(kyvernov1.Enforce)].List(),
+			action[string(kyvernov1.Audit)].List(), action["enforceW"].List(), action["auditW"].List())
 		if err != nil {
 			return fmt.Errorf("path: %s: %s", path.Index(i).Child("namespaces").String(), err.Error())
 		}

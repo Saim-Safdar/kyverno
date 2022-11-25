@@ -1,12 +1,12 @@
 apiVersion: kyverno.io/v1
 kind: ClusterPolicy
 metadata:
-  name: background-vars-serviceaccountname
+  name: validate-labels
 spec:
   validationFailureAction: audit
   background: true
   rules:
-  - name: ns-vars-serviceaccountname
+  - name: ns-vars
     match:
       any:
       - resources:

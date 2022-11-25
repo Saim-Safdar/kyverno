@@ -1,8 +1,8 @@
 apiVersion: v2
 type: application
 name: kyverno
-version: v2.5.3
-appVersion: v1.7.3
+version: 2.6.2
+appVersion: v1.8.2
 icon: https://github.com/kyverno/kyverno/raw/main/img/logo.png
 description: Kubernetes Native Policy Management
 keywords:
@@ -52,5 +52,3 @@ annotations:
       description: Support extra CRD annotations
     - kind: added
       description: Grafana dashboard.
-    - kind: added
-      description: Cleanup controller.

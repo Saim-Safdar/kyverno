@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"context"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -9,15 +8,15 @@ import (
 	admissionv1 "k8s.io/api/admission/v1"
 )
 
-func (inner AdmissionHandler) WithFilter(configuration config.Configuration) AdmissionHandler {
-	return inner.withFilter(configuration).WithTrace("FILTER")
+func (h AdmissionHandler) WithFilter(configuration config.Configuration) AdmissionHandler {
+	return withFilter(configuration, h)
 }
 
-func (inner AdmissionHandler) withFilter(c config.Configuration) AdmissionHandler {
-	return func(ctx context.Context, logger logr.Logger, request *admissionv1.AdmissionRequest, startTime time.Time) *admissionv1.AdmissionResponse {
+func withFilter(c config.Configuration, inner AdmissionHandler) AdmissionHandler {
+	return func(logger logr.Logger, request *admissionv1.AdmissionRequest, startTime time.Time) *admissionv1.AdmissionResponse {
 		if c.ToFilter(request.Kind.Kind, request.Namespace, request.Name) {
 			return nil
 		}
-		return inner(ctx, logger, request, startTime)
+		return inner(logger, request, startTime)
 	}
 }

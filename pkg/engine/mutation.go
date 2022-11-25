@@ -224,9 +224,6 @@ func mutateElements(name string, foreach kyvernov1.ForEachMutation, ctx *PolicyC
 	}
 
 	for i, e := range elements {
-		if e == nil {
-			continue
-		}
 		ctx.JSONContext.Reset()
 		ctx := ctx.Copy()
 		store.SetForeachElement(i)
