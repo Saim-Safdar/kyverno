@@ -5,10 +5,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
-var (
-	taskGVR = e2e.GetGVR("tekton.dev", "v1beta1", "tasks")
-	podGVR  = e2e.GetGVR("", "v1", "pods")
-)
+var taskGVR = e2e.GetGVR("tekton.dev", "v1beta1", "tasks")
 
 var VerifyImagesTests = []struct {
 	// TestName - Name of the Test
@@ -82,27 +79,5 @@ var VerifyImagesTests = []struct {
 		ResourceGVR:       taskGVR,
 		ResourceRaw:       tektonTaskVerified,
 		MustSucceed:       true,
-	},
-	{
-		// Success case to check secret in attestors.entries.keys
-		TestName:          "secret-in-keys-success",
-		PolicyName:        "secret-in-keys",
-		PolicyRaw:         kyvernoPolicyWithSecretInKeys,
-		ResourceName:      "test-secret-pod",
-		ResourceNamespace: "test-verify-images",
-		ResourceGVR:       podGVR,
-		ResourceRaw:       secretPodResourceSuccess,
-		MustSucceed:       true,
-	},
-	{
-		// Failed case to check secret in attestors.entries.keys
-		TestName:          "secret-in-keys-failure",
-		PolicyName:        "secret-in-keys",
-		PolicyRaw:         kyvernoPolicyWithSecretInKeys,
-		ResourceName:      "test-secret-pod",
-		ResourceNamespace: "test-verify-images",
-		ResourceGVR:       podGVR,
-		ResourceRaw:       secretPodResourceFailed,
-		MustSucceed:       false,
 	},
 }

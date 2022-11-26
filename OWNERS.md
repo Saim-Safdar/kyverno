@@ -6,7 +6,6 @@ approvers:
 - MarcelMue
 - treydock
 - prateekpandey14
-- eddycharly
 
 reviewers:
 - JimBugwadia

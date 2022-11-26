@@ -14,7 +14,7 @@ var _ Client = &client{}
 
 func TestInitClientWithEmptyOptions(t *testing.T) {
 	expClient := &client{
-		transport: remote.DefaultTransport.(*http.Transport),
+		transport: remote.DefaultTransport,
 	}
 	c, err := InitClient()
 	assert.NilError(t, err)

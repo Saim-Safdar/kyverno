@@ -76,7 +76,11 @@ func initRecorder(client dclient.Interface, eventSource Source, log logr.Logger)
 		return nil
 	}
 	eventBroadcaster := record.NewBroadcaster()
-	eventInterface := client.GetEventsInterface()
+	eventInterface, err := client.GetEventsInterface()
+	if err != nil {
+		log.Error(err, "failed to get event interface for logging")
+		return nil
+	}
 	eventBroadcaster.StartRecordingToSink(
 		&typedcorev1.EventSinkImpl{
 			Interface: eventInterface,

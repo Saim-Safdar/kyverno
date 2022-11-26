@@ -1,5 +1,6 @@
 certs
 Gopkg.lock
+.vscode
 gh-pages/public
 _output
 coverage.txt
@@ -7,7 +8,7 @@ coverage.txt
 cmd/cli/kubectl-kyverno/kubectl-kyverno
 cmd/initContainer/kyvernopre
 cmd/kyverno/kyverno
-cmd/cleanup-controller/cleanup-controller
+kubectl-kyverno
 /release
 .DS_Store
 .tools

@@ -115,6 +115,8 @@ type Configuration interface {
 	GetExcludeUsername() []string
 	// GetGenerateSuccessEvents return if should generate success events
 	GetGenerateSuccessEvents() bool
+	// RestrictDevelopmentUsername return exclude development username
+	RestrictDevelopmentUsername() []string
 	// FilterNamespaces filters exclude namespace
 	FilterNamespaces(namespaces []string) []string
 	// GetWebhooks returns the webhook configs
@@ -125,18 +127,20 @@ type Configuration interface {
 
 // configuration stores the configuration
 type configuration struct {
-	mux                   sync.RWMutex
-	filters               []filter
-	excludeGroupRole      []string
-	excludeUsername       []string
-	webhooks              []WebhookConfig
-	generateSuccessEvents bool
+	mux                         sync.RWMutex
+	filters                     []filter
+	excludeGroupRole            []string
+	excludeUsername             []string
+	restrictDevelopmentUsername []string
+	webhooks                    []WebhookConfig
+	generateSuccessEvents       bool
 }
 
-// NewDefaultConfiguration ...
+// NewConfiguration ...
 func NewDefaultConfiguration() *configuration {
 	return &configuration{
-		excludeGroupRole: defaultExcludeGroupRole,
+		restrictDevelopmentUsername: []string{"minikube-user", "kubernetes-admin"},
+		excludeGroupRole:            defaultExcludeGroupRole,
 	}
 }
 
@@ -174,6 +178,12 @@ func (cd *configuration) GetExcludeGroupRole() []string {
 	cd.mux.RLock()
 	defer cd.mux.RUnlock()
 	return cd.excludeGroupRole
+}
+
+func (cd *configuration) RestrictDevelopmentUsername() []string {
+	cd.mux.RLock()
+	defer cd.mux.RUnlock()
+	return cd.restrictDevelopmentUsername
 }
 
 func (cd *configuration) GetExcludeUsername() []string {

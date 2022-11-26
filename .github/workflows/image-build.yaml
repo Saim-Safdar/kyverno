@@ -10,10 +10,6 @@ permissions:
   packages: write
   id-token: write 
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
   pre-checks:
     runs-on: ubuntu-latest
