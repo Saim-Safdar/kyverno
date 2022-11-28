@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"time"
@@ -15,15 +14,15 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
-func (inner AdmissionHandler) WithProtection(enabled bool) AdmissionHandler {
+func (h AdmissionHandler) WithProtection(enabled bool) AdmissionHandler {
 	if !enabled {
-		return inner
+		return h
 	}
-	return inner.withProtection().WithTrace("PROTECT")
+	return withProtection(h)
 }
 
-func (inner AdmissionHandler) withProtection() AdmissionHandler {
-	return func(ctx context.Context, logger logr.Logger, request *admissionv1.AdmissionRequest, startTime time.Time) *admissionv1.AdmissionResponse {
+func withProtection(inner AdmissionHandler) AdmissionHandler {
+	return func(logger logr.Logger, request *admissionv1.AdmissionRequest, startTime time.Time) *admissionv1.AdmissionResponse {
 		newResource, oldResource, err := utils.ExtractResources(nil, request)
 		if err != nil {
 			logger.Error(err, "Failed to extract resources")
@@ -38,6 +37,6 @@ func (inner AdmissionHandler) withProtection() AdmissionHandler {
 				}
 			}
 		}
-		return inner(ctx, logger, request, startTime)
+		return inner(logger, request, startTime)
 	}
 }

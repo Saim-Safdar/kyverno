@@ -78,7 +78,7 @@ func buildResponse(ctx *PolicyContext, resp *response.EngineResponse, startTime 
 	resp.PolicyResponse.Resource.Namespace = resp.PatchedResource.GetNamespace()
 	resp.PolicyResponse.Resource.Kind = resp.PatchedResource.GetKind()
 	resp.PolicyResponse.Resource.APIVersion = resp.PatchedResource.GetAPIVersion()
-	resp.PolicyResponse.ValidationFailureAction = ctx.Policy.GetSpec().ValidationFailureAction
+	resp.PolicyResponse.ValidationFailureAction = ctx.Policy.GetSpec().GetValidationFailureAction()
 
 	for _, v := range ctx.Policy.GetSpec().ValidationFailureActionOverrides {
 		resp.PolicyResponse.ValidationFailureActionOverrides = append(resp.PolicyResponse.ValidationFailureActionOverrides, response.ValidationFailureActionOverride{Action: v.Action, Namespaces: v.Namespaces})
@@ -305,6 +305,7 @@ func (v *validator) validateForEach() *response.RuleResponse {
 			v.log.V(2).Info("failed to evaluate list", "list", foreach.List, "error", err.Error())
 			continue
 		}
+
 		resp, count := v.validateElements(foreach, elements, foreach.ElementScope)
 		if resp.Status != response.RuleStatusPass {
 			return resp
@@ -326,9 +327,6 @@ func (v *validator) validateElements(foreach kyvernov1.ForEachValidation, elemen
 	applyCount := 0
 
 	for i, e := range elements {
-		if e == nil {
-			continue
-		}
 		store.SetForeachElement(i)
 		v.ctx.JSONContext.Reset()
 
@@ -456,7 +454,7 @@ func (v *validator) getDenyMessage(deny bool) string {
 func getSpec(v *validator) (podSpec *corev1.PodSpec, metadata *metav1.ObjectMeta, err error) {
 	kind := v.ctx.NewResource.GetKind()
 
-	if kind == "DaemonSet" || kind == "Deployment" || kind == "Job" || kind == "StatefulSet" || kind == "ReplicaSet" || kind == "ReplicationController" {
+	if kind == "DaemonSet" || kind == "Deployment" || kind == "Job" || kind == "StatefulSet" {
 		var deployment appsv1.Deployment
 
 		resourceBytes, err := v.ctx.NewResource.MarshalJSON()
@@ -633,7 +631,6 @@ func (v *validator) validatePatterns(resource unstructured.Unstructured) *respon
 
 	if v.anyPattern != nil {
 		var failedAnyPatternsErrors []error
-		var skippedAnyPatternErrors []error
 		var err error
 
 		anyPatterns, err := deserializeAnyPattern(v.anyPattern)
@@ -650,33 +647,19 @@ func (v *validator) validatePatterns(resource unstructured.Unstructured) *respon
 			}
 
 			if pe, ok := err.(*validate.PatternError); ok {
-				var patternErr error
 				v.log.V(3).Info("validation rule failed", "anyPattern[%d]", idx, "path", pe.Path)
-
-				if pe.Skip {
-					patternErr = fmt.Errorf("rule %s[%d] skipped: %s", v.rule.Name, idx, err.Error())
-					skippedAnyPatternErrors = append(skippedAnyPatternErrors, patternErr)
+				if pe.Path == "" {
+					patternErr := fmt.Errorf("rule %s[%d] failed: %s", v.rule.Name, idx, err.Error())
+					failedAnyPatternsErrors = append(failedAnyPatternsErrors, patternErr)
 				} else {
-					if pe.Path == "" {
-						patternErr = fmt.Errorf("rule %s[%d] failed: %s", v.rule.Name, idx, err.Error())
-					} else {
-						patternErr = fmt.Errorf("rule %s[%d] failed at path %s", v.rule.Name, idx, pe.Path)
-					}
+					patternErr := fmt.Errorf("rule %s[%d] failed at path %s", v.rule.Name, idx, pe.Path)
 					failedAnyPatternsErrors = append(failedAnyPatternsErrors, patternErr)
 				}
 			}
 		}
 
 		// Any Pattern validation errors
-		if len(skippedAnyPatternErrors) > 0 && len(failedAnyPatternsErrors) == 0 {
-			var errorStr []string
-			for _, err := range skippedAnyPatternErrors {
-				errorStr = append(errorStr, err.Error())
-			}
-
-			v.log.V(4).Info(fmt.Sprintf("Validation rule '%s' skipped. %s", v.rule.Name, errorStr))
-			return ruleResponse(*v.rule, response.Validation, strings.Join(errorStr, " "), response.RuleStatusSkip, nil)
-		} else if len(failedAnyPatternsErrors) > 0 {
+		if len(failedAnyPatternsErrors) > 0 {
 			var errorStr []string
 			for _, err := range failedAnyPatternsErrors {
 				errorStr = append(errorStr, err.Error())

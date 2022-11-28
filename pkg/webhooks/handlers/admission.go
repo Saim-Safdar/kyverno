@@ -2,40 +2,49 @@ package handlers
 
 import (
 	"encoding/json"
-	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"time"
 
 	"github.com/go-logr/logr"
+	"github.com/kyverno/kyverno/pkg/tracing"
+	"go.opentelemetry.io/otel/attribute"
 	admissionv1 "k8s.io/api/admission/v1"
 )
 
-func (inner AdmissionHandler) WithAdmission(logger logr.Logger) HttpHandler {
-	return inner.withAdmission(logger).WithTrace("ADMISSION")
+type AdmissionHandler func(logr.Logger, *admissionv1.AdmissionRequest, time.Time) *admissionv1.AdmissionResponse
+
+func (h AdmissionHandler) WithAdmission(logger logr.Logger) http.HandlerFunc {
+	return withAdmission(logger, h)
 }
 
-func (inner AdmissionHandler) withAdmission(logger logr.Logger) HttpHandler {
+func withAdmission(logger logr.Logger, inner AdmissionHandler) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
+		ctx := request.Context()
 		startTime := time.Now()
 		if request.Body == nil {
-			httpError(writer, request, logger, errors.New("empty body"), http.StatusBadRequest)
+			logger.Info("empty body", "req", request.URL.String())
+			http.Error(writer, "empty body", http.StatusBadRequest)
 			return
 		}
 		defer request.Body.Close()
 		body, err := io.ReadAll(request.Body)
 		if err != nil {
-			httpError(writer, request, logger, err, http.StatusBadRequest)
+			logger.Info("failed to read HTTP body", "req", request.URL.String())
+			http.Error(writer, "failed to read HTTP body", http.StatusBadRequest)
 			return
 		}
 		contentType := request.Header.Get("Content-Type")
 		if contentType != "application/json" {
-			httpError(writer, request, logger, errors.New("invalid Content-Type"), http.StatusUnsupportedMediaType)
+			logger.Info("invalid Content-Type", "contentType", contentType)
+			http.Error(writer, "invalid Content-Type, expect `application/json`", http.StatusUnsupportedMediaType)
 			return
 		}
 		admissionReview := &admissionv1.AdmissionReview{}
 		if err := json.Unmarshal(body, &admissionReview); err != nil {
-			httpError(writer, request, logger, err, http.StatusExpectationFailed)
+			logger.Error(err, "failed to decode request body to type 'AdmissionReview")
+			http.Error(writer, "Can't decode body as AdmissionReview", http.StatusExpectationFailed)
 			return
 		}
 		logger := logger.WithValues(
@@ -50,19 +59,30 @@ func (inner AdmissionHandler) withAdmission(logger logr.Logger) HttpHandler {
 			Allowed: true,
 			UID:     admissionReview.Request.UID,
 		}
-		admissionResponse := inner(request.Context(), logger, admissionReview.Request, startTime)
-		if admissionResponse != nil {
-			admissionReview.Response = admissionResponse
+		adminssionResponse := inner(logger, admissionReview.Request, startTime)
+		if adminssionResponse != nil {
+			admissionReview.Response = adminssionResponse
 		}
 		responseJSON, err := json.Marshal(admissionReview)
 		if err != nil {
-			httpError(writer, request, logger, err, http.StatusInternalServerError)
+			http.Error(writer, fmt.Sprintf("Could not encode response: %v", err), http.StatusInternalServerError)
 			return
 		}
+
+		// start span from request context
+		attributes := []attribute.KeyValue{
+			attribute.String("kind", admissionReview.Request.Kind.Kind),
+			attribute.String("namespace", admissionReview.Request.Namespace),
+			attribute.String("name", admissionReview.Request.Name),
+			attribute.String("operation", string(admissionReview.Request.Operation)),
+			attribute.String("uid", string(admissionReview.Request.UID)),
+		}
+		span := tracing.StartSpan(ctx, "admission_webhook_operations", string(admissionReview.Request.Operation), attributes)
+		defer span.End()
+
 		writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 		if _, err := writer.Write(responseJSON); err != nil {
-			httpError(writer, request, logger, err, http.StatusInternalServerError)
-			return
+			http.Error(writer, fmt.Sprintf("could not write response: %v", err), http.StatusInternalServerError)
 		}
 		if admissionReview.Request.Kind.Kind == "Lease" {
 			logger.V(6).Info("admission review request processed", "time", time.Since(startTime).String())

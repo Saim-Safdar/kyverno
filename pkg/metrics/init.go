@@ -1,7 +1,6 @@
 package metrics
 
 import (
-	"context"
 	"net/http"
 
 	"github.com/go-logr/logr"
@@ -11,12 +10,11 @@ import (
 )
 
 func InitMetrics(
-	ctx context.Context,
 	disableMetricsExport bool,
 	otel string,
 	metricsAddr string,
 	otelCollector string,
-	metricsConfiguration config.MetricsConfiguration,
+	metricsConfigData *config.MetricsConfigData,
 	transportCreds string,
 	kubeClient kubernetes.Interface,
 	log logr.Logger,
@@ -25,12 +23,11 @@ func InitMetrics(
 	var metricsServerMux *http.ServeMux
 	var pusher *controller.Controller
 
-	metricsConfig := MetricsConfig{
-		Log:    log,
-		Config: metricsConfiguration,
-	}
+	metricsConfig := new(MetricsConfig)
+	metricsConfig.Log = log
+	metricsConfig.Config = metricsConfigData
 
-	err = metricsConfig.initializeMetrics()
+	metricsConfig, err = initializeMetrics(metricsConfig)
 	if err != nil {
 		log.Error(err, "Failed initializing metrics")
 		return nil, nil, nil, err
@@ -43,7 +40,6 @@ func InitMetrics(
 
 			endpoint := otelCollector + metricsAddr
 			pusher, err = NewOTLPGRPCConfig(
-				ctx,
 				endpoint,
 				transportCreds,
 				kubeClient,
@@ -54,12 +50,12 @@ func InitMetrics(
 			}
 		} else if otel == "prometheus" {
 			// Prometheus Server will serve metrics on metrics-port
-			metricsServerMux, err = NewPrometheusConfig(ctx, log)
+			metricsServerMux, err = NewPrometheusConfig(log)
 
 			if err != nil {
 				return nil, nil, pusher, err
 			}
 		}
 	}
-	return &metricsConfig, metricsServerMux, pusher, nil
+	return metricsConfig, metricsServerMux, pusher, nil
 }

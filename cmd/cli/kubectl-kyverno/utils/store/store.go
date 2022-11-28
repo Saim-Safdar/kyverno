@@ -6,12 +6,10 @@ import (
 )
 
 var (
-	Mock           bool
-	RegistryAccess bool
-	AllowApiCalls  bool
-	ContextVar     Context
-	ForeachElement int
-	Subjects       Subject
+	Mock, RegistryAccess bool
+	ContextVar           Context
+	ForeachElement       int
+	Subjects             Subject
 )
 
 func SetMock(mock bool) {
@@ -96,12 +94,4 @@ func GetSubjects() Subject {
 
 type Subject struct {
 	Subject rbacv1.Subject `json:"subject,omitempty" yaml:"subject,omitempty"`
-}
-
-func AllowApiCall(allow bool) {
-	AllowApiCalls = allow
-}
-
-func IsAllowApiCall() bool {
-	return AllowApiCalls
 }

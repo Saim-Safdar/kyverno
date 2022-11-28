@@ -144,7 +144,6 @@ func ignorePatch(path string) bool {
 			!strings.Contains(path, "/metadata/annotations") &&
 			!strings.Contains(path, "/metadata/labels") &&
 			!strings.Contains(path, "/metadata/ownerReferences") &&
-			!strings.Contains(path, "/metadata/generateName") &&
 			!strings.Contains(path, "/metadata/finalizers") {
 			return true
 		}

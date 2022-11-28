@@ -1,7 +1,6 @@
 package policyresults
 
 import (
-	"context"
 	"fmt"
 
 	kyvernov1 "github.com/kyverno/kyverno/api/kyverno/v1"
@@ -11,7 +10,6 @@ import (
 )
 
 func registerPolicyResultsMetric(
-	ctx context.Context,
 	m *metrics.MetricsConfig,
 	policyValidationMode metrics.PolicyValidationMode,
 	policyType metrics.PolicyType,
@@ -37,14 +35,14 @@ func registerPolicyResultsMetric(
 		return nil
 	}
 
-	m.RecordPolicyResults(ctx, policyValidationMode, policyType, policyBackgroundMode, policyNamespace, policyName, resourceKind, resourceNamespace, resourceRequestOperation, ruleName, ruleResult, ruleType, ruleExecutionCause)
+	m.RecordPolicyResults(policyValidationMode, policyType, policyBackgroundMode, policyNamespace, policyName, resourceKind, resourceNamespace, resourceRequestOperation, ruleName, ruleResult, ruleType, ruleExecutionCause)
 
 	return nil
 }
 
 // policy - policy related data
 // engineResponse - resource and rule related data
-func ProcessEngineResponse(ctx context.Context, m *metrics.MetricsConfig, policy kyvernov1.PolicyInterface, engineResponse response.EngineResponse, executionCause metrics.RuleExecutionCause, resourceRequestOperation metrics.ResourceRequestOperation) error {
+func ProcessEngineResponse(m *metrics.MetricsConfig, policy kyvernov1.PolicyInterface, engineResponse response.EngineResponse, executionCause metrics.RuleExecutionCause, resourceRequestOperation metrics.ResourceRequestOperation) error {
 	name, namespace, policyType, backgroundMode, validationMode, err := metrics.GetPolicyInfos(policy)
 	if err != nil {
 		return err
@@ -72,7 +70,6 @@ func ProcessEngineResponse(ctx context.Context, m *metrics.MetricsConfig, policy
 			ruleResult = metrics.Fail
 		}
 		if err := registerPolicyResultsMetric(
-			ctx,
 			m,
 			validationMode,
 			policyType,

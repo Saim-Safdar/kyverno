@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	kyvernov1 "github.com/kyverno/kyverno/api/kyverno/v1"
+	"github.com/kyverno/kyverno/pkg/toggle"
 	"github.com/kyverno/kyverno/pkg/utils"
 	jsonutils "github.com/kyverno/kyverno/pkg/utils/json"
 	kubeutils "github.com/kyverno/kyverno/pkg/utils/kube"
@@ -18,7 +19,7 @@ const (
 	// PodControllerCronJob represent CronJob string
 	PodControllerCronJob = "CronJob"
 	// PodControllers stores the list of Pod-controllers in csv string
-	PodControllers = "DaemonSet,Deployment,Job,StatefulSet,ReplicaSet,ReplicationController,CronJob"
+	PodControllers = "DaemonSet,Deployment,Job,StatefulSet,CronJob"
 )
 
 var podControllersKindsSet = sets.NewString(append(strings.Split(PodControllers, ","), "Pod")...)
@@ -278,6 +279,10 @@ func convertRule(rule kyvernoRule, kind string) (*kyvernov1.Rule, error) {
 }
 
 func ComputeRules(p kyvernov1.PolicyInterface) []kyvernov1.Rule {
+	if !toggle.AutogenInternals.Enabled() {
+		spec := p.GetSpec()
+		return spec.Rules
+	}
 	return computeRules(p)
 }
 

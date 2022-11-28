@@ -101,12 +101,12 @@ func (v *validationHandler) HandleValidation(
 			continue
 		}
 
-		go webhookutils.RegisterPolicyResultsMetricValidation(context.TODO(), logger, metricsConfig, string(request.Operation), policyContext.Policy, *engineResponse)
-		go webhookutils.RegisterPolicyExecutionDurationMetricValidate(context.TODO(), logger, metricsConfig, string(request.Operation), policyContext.Policy, *engineResponse)
+		go webhookutils.RegisterPolicyResultsMetricValidation(logger, metricsConfig, string(request.Operation), policyContext.Policy, *engineResponse)
+		go webhookutils.RegisterPolicyExecutionDurationMetricValidate(logger, metricsConfig, string(request.Operation), policyContext.Policy, *engineResponse)
 
 		engineResponses = append(engineResponses, engineResponse)
 		if !engineResponse.IsSuccessful() {
-			logger.V(2).Info("validation failed", "action", policy.GetSpec().ValidationFailureAction, "policy", policy.GetName(), "failed rules", engineResponse.GetFailedRules())
+			logger.V(2).Info("validation failed", "policy", policy.GetName(), "failed rules", engineResponse.GetFailedRules())
 			continue
 		}
 
